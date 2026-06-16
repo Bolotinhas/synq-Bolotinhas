@@ -30,7 +30,7 @@ if (APPLE)
 endif()
 
 if (UNIX AND NOT APPLE)
-        include_directories("/usr/include/eigen3/")
+        include_directories("/usr/local/include/eigen-3.4.0/")
 endif()
 
 enable_testing()
