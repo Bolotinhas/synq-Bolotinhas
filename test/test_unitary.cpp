@@ -7,6 +7,41 @@
 #include <complex>
 #include <unsupported/Eigen/KroneckerProduct>
 
+static Eigen::matrix2cd rz_mat(double theta){
+    Eigen::matrix2cd m = Eigen::matrix2cd::Zero();
+    m(0, 0) = std::exp(std::complex<double>(0.0, -theta/2.0));
+    m(1, 1) = std::exp(std::complex<double>(0.0, +theta/2.0));
+    return m;
+}
+
+static Eigen::Matrix2cd ry_mat(double theta){
+    Eigen::matrix2cd m;
+    m(0,0) = std::cos(theta/2.0);
+    m(0,1) = -std::sin(theta/2.0);
+    m(1,0) = std::sin(theta/2.0);
+    m(1,1) = std::cos(theta/2.0);
+    return m;
+}   
+
+static Eigen::MatrixXcd cx_mat(int control, int target, int n_qubits){
+    int dim = 1 << n_qubits;
+    Eigen::matrixXcd m = Eigen::MatrixXcd::Zero(dim, dim);
+
+    for (int state = 0; state < dim; ++state){
+        int control_bit = (n_qubits - 1) - control;
+        int target_bit = (n_qubits - 1) - target;
+
+        if ((state >> control_bit) & 1){
+            int new_state = state ^ (1 << target_bit);
+            m(new_state, state) = 1.0;
+        } else {
+            m(state, state) = 1.0;
+        }
+    }
+
+    return m;
+}
+
 TEST(UnitaryGateNodeTests, Unitary2x2Matrix) {
 
     const double inv_sqrt2 = 1.0 / std::sqrt(2.0);
