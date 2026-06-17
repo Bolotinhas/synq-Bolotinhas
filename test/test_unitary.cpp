@@ -5,6 +5,7 @@
 #include "../include/twoQubitsUnitary.h"
 #include <iostream>
 #include <complex>
+#include <sstream>
 #include <unsupported/Eigen/KroneckerProduct>
 
 static Eigen::Matrix2cd rz_mat(double theta){
@@ -22,6 +23,21 @@ static Eigen::Matrix2cd ry_mat(double theta){
     m(1,1) = std::cos(theta/2.0);
     return m;
 }   
+
+static Eigen::MatrixXcd expand_single(const Eigen::Matrix2cd& gate, int target, int n_qubits){
+    Eigen::Matrix2cd I2 = Eigen::Matrix2cd::Identity();
+    Eigen::MatrixXcd result(1, 1);
+    result(0, 0) = 1.0;
+
+    for (int q = 0; q < n_qubits; q++){
+        const Eigen::Matrix2cd& factor = (q == target) ? gate : I2;
+        Eigen::MatrixXcd next = Eigen::kroneckerProduct(result, factor).eval();
+
+        result = next;
+    }
+
+    return result;
+}
 
 static Eigen::MatrixXcd cx_mat(int control, int target, int n_qubits){
     int dim = 1 << n_qubits;
@@ -52,18 +68,65 @@ Eigen::Matrix2cd one_qubit_qasm_to_matrix(const std::string& qasm_code) {
     std::istringstream iss(qasm_code);
     std::string line;
 
+    auto parse_angle = [](const std::string& l) -> double {
+        size_t open  = l.find('(');
+        size_t close = l.find(')');
+        return std::stod(l.substr(open + 1, close - open - 1));
+    };
+
+
     while (std::getline(iss, line)) {
         if (line.find("rz") != std::string::npos) {
-            double theta = std::stod(line.substr(line.find('(') + 1, line.find(')') - line.find('(') - 1));
-            U = rz_mat(theta) * U;
+            U = rz_mat(parse_angle(line)) * U;
         } else if (line.find("ry") != std::string::npos) {
-            double theta = std::stod(line.substr(line.find('(') + 1, line.find(')') - line.find('(') - 1));
-            U = ry_mat(theta) * U;
+            U = ry_mat(parse_angle(line)) * U;
         }
-        if(line.find("gphase") != std::string::npos){
-            double theta = std::stod(line.substr(line.find('(') + 1, line.find(')') - line.find('(') - 1));
-            U = gphase(theta) * U;
+        if (line.find("gphase") != std::string::npos) {
+            U *= std::exp(std::complex<double>(0.0, parse_angle(line)));
         }
+    }
+
+    return U;
+}
+
+static Eigen::MatrixXcd simulate_qasm(const std::string& qasm_code, int n_qubits){
+    int dim = 1 << n_qubits;
+    Eigen::MatrixXcd U = Eigen::MatrixXcd::Identity(dim, dim);
+
+    std::istringstream iss(qasm_code);
+    std::string line;
+
+    auto parse_angle = [](const std::string& l) -> double {
+        size_t open  = l.find('(');
+        size_t close = l.find(')');
+        return std::stod(l.substr(open + 1, close - open - 1));
+    };
+
+    auto parse_qubit = [](const std::string& l, size_t start) -> int{
+        size_t open = l.find('[', start);
+        size_t close = l.find(']', open);
+
+        return std::stoi(l.substr(open + 1, close - open - 1));
+    };
+
+    while (std::getline(iss, line)) {
+        if (line.find("rz") != std::string::npos){
+            double angle = parse_angle(line);
+            int qubit = parse_qubit(line, 0);
+            U = expand_single(rz_mat(angle), qubit, n_qubits) * U;
+        } else if (line.find("ry") != std::string::npos) {
+            double angle = parse_angle(line);
+            int qubit    = parse_qubit(line, 0);
+            U = expand_single(ry_mat(angle), qubit, n_qubits) * U;
+        } else if (line.find("cx") != std::string::npos) {
+            int ctrl = parse_qubit(line, 0);
+            size_t comma = line.find(',');
+            int tgt = parse_qubit(line, comma);
+            U = cx_mat(ctrl, tgt, n_qubits) * U;
+        } else if (line.find("gphase") != std::string::npos){
+            U *= gphase(parse_angle(line));
+        }
+
     }
 
     return U;
@@ -92,6 +155,7 @@ TEST(UnitaryGateNodeTests, Unitary2x2Matrix) {
 
 TEST(UnitaryGateNodeTests, IdentityGate) {
     Eigen::MatrixXcd eye(4, 4);
+   
     eye << 1, 0, 0, 0,
             0, 1, 0, 0,
             0, 0, 1, 0,
@@ -104,9 +168,11 @@ TEST(UnitaryGateNodeTests, IdentityGate) {
     unitaryNode.accept(visitor);
 
     std::cout << visitor.qasm_code << std::endl;
+    Eigen::MatrixXcd reconstructed = simulate_qasm(visitor.qasm_code, 2);
     
     EXPECT_FALSE(visitor.qasm_code.empty());
     EXPECT_NE(visitor.qasm_code.find("OPENQASM"), std::string::npos);
+    EXPECT_TRUE(eye.isApprox(reconstructed, 1e-6));
 }
 
 TEST(UnitaryGateNodeTests, CNOTGate) {
@@ -123,9 +189,11 @@ TEST(UnitaryGateNodeTests, CNOTGate) {
     unitaryNode.accept(visitor);
 
     std::cout << visitor.qasm_code << std::endl;
+    Eigen::MatrixXcd reconstructed = simulate_qasm(visitor.qasm_code, 2);
     
     EXPECT_FALSE(visitor.qasm_code.empty());
     EXPECT_NE(visitor.qasm_code.find("OPENQASM"), std::string::npos);
+    EXPECT_TRUE(cnot.isApprox(reconstructed, 1e-6));
 }
 
 TEST(UnitaryGateNodeTests, Random4x4Unitary) {
