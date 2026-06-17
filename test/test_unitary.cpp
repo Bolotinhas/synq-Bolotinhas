@@ -7,15 +7,15 @@
 #include <complex>
 #include <unsupported/Eigen/KroneckerProduct>
 
-static Eigen::matrix2cd rz_mat(double theta){
-    Eigen::matrix2cd m = Eigen::matrix2cd::Zero();
+static Eigen::Matrix2cd rz_mat(double theta){
+    Eigen::Matrix2cd m = Eigen::Matrix2cd::Zero();
     m(0, 0) = std::exp(std::complex<double>(0.0, -theta/2.0));
     m(1, 1) = std::exp(std::complex<double>(0.0, +theta/2.0));
     return m;
 }
 
 static Eigen::Matrix2cd ry_mat(double theta){
-    Eigen::matrix2cd m;
+    Eigen::Matrix2cd m;
     m(0,0) = std::cos(theta/2.0);
     m(0,1) = -std::sin(theta/2.0);
     m(1,0) = std::sin(theta/2.0);
@@ -25,7 +25,7 @@ static Eigen::Matrix2cd ry_mat(double theta){
 
 static Eigen::MatrixXcd cx_mat(int control, int target, int n_qubits){
     int dim = 1 << n_qubits;
-    Eigen::matrixXcd m = Eigen::MatrixXcd::Zero(dim, dim);
+    Eigen::MatrixXcd m = Eigen::MatrixXcd::Zero(dim, dim);
 
     for (int state = 0; state < dim; ++state){
         int control_bit = (n_qubits - 1) - control;
@@ -42,6 +42,33 @@ static Eigen::MatrixXcd cx_mat(int control, int target, int n_qubits){
     return m;
 }
 
+static std::complex<double> gphase(double theta) {
+    return std::exp(std::complex<double>(0.0, theta));
+}
+
+Eigen::Matrix2cd one_qubit_qasm_to_matrix(const std::string& qasm_code) {
+    Eigen::Matrix2cd U = Eigen::Matrix2cd::Identity();
+
+    std::istringstream iss(qasm_code);
+    std::string line;
+
+    while (std::getline(iss, line)) {
+        if (line.find("rz") != std::string::npos) {
+            double theta = std::stod(line.substr(line.find('(') + 1, line.find(')') - line.find('(') - 1));
+            U = rz_mat(theta) * U;
+        } else if (line.find("ry") != std::string::npos) {
+            double theta = std::stod(line.substr(line.find('(') + 1, line.find(')') - line.find('(') - 1));
+            U = ry_mat(theta) * U;
+        }
+        if(line.find("gphase") != std::string::npos){
+            double theta = std::stod(line.substr(line.find('(') + 1, line.find(')') - line.find('(') - 1));
+            U = gphase(theta) * U;
+        }
+    }
+
+    return U;
+}
+
 TEST(UnitaryGateNodeTests, Unitary2x2Matrix) {
 
     const double inv_sqrt2 = 1.0 / std::sqrt(2.0);
@@ -56,9 +83,11 @@ TEST(UnitaryGateNodeTests, Unitary2x2Matrix) {
     unitaryNode.accept(visitor);
 
     std::cout << visitor.qasm_code << std::endl;
+    Eigen::Matrix2cd converted_matrix = one_qubit_qasm_to_matrix(visitor.qasm_code);
 
     EXPECT_FALSE(visitor.qasm_code.empty());
     EXPECT_NE(visitor.qasm_code.find("OPENQASM"), std::string::npos);
+    EXPECT_TRUE(converted_matrix.isApprox(matrix, 1e-6));
 }
 
 TEST(UnitaryGateNodeTests, IdentityGate) {
