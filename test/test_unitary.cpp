@@ -3,26 +3,11 @@
 #include "../include/nodeVisitor.h"
 #include "../include/randomUnitary.h"
 #include "../include/twoQubitsUnitary.h"
+#include "../include/one_qubit_gate.h"
 #include <iostream>
 #include <complex>
 #include <sstream>
 #include <unsupported/Eigen/KroneckerProduct>
-
-static Eigen::Matrix2cd rz_mat(double theta){
-    Eigen::Matrix2cd m = Eigen::Matrix2cd::Zero();
-    m(0, 0) = std::exp(std::complex<double>(0.0, -theta/2.0));
-    m(1, 1) = std::exp(std::complex<double>(0.0, +theta/2.0));
-    return m;
-}
-
-static Eigen::Matrix2cd ry_mat(double theta){
-    Eigen::Matrix2cd m;
-    m(0,0) = std::cos(theta/2.0);
-    m(0,1) = -std::sin(theta/2.0);
-    m(1,0) = std::sin(theta/2.0);
-    m(1,1) = std::cos(theta/2.0);
-    return m;
-}   
 
 static Eigen::MatrixXcd expand_single(const Eigen::Matrix2cd& gate, int target, int n_qubits){
     Eigen::Matrix2cd I2 = Eigen::Matrix2cd::Identity();
@@ -40,29 +25,36 @@ static Eigen::MatrixXcd expand_single(const Eigen::Matrix2cd& gate, int target, 
 }
 
 static Eigen::MatrixXcd cx_mat(int control, int target, int n_qubits){
-    int dim = 1 << n_qubits;
-    Eigen::MatrixXcd m = Eigen::MatrixXcd::Zero(dim, dim);
+    OneQubit gate = OneQubit();
+    Eigen::Matrix2cd I, P0, P1, X;
+    I << 1, 0, 0, 1;
+    P0 << 1, 0, 0, 0;
+    P1 << 0, 0, 0, 1;
+    X = gate.x_matrix();
 
-    for (int state = 0; state < dim; ++state){
-        int control_bit = (n_qubits - 1) - control;
-        int target_bit = (n_qubits - 1) - target;
+    Eigen::MatrixXcd term0 = Eigen::MatrixXcd::Identity(1, 1);
+    Eigen::MatrixXcd term1 = Eigen::MatrixXcd::Identity(1, 1);
 
-        if ((state >> control_bit) & 1){
-            int new_state = state ^ (1 << target_bit);
-            m(new_state, state) = 1.0;
-        } else {
-            m(state, state) = 1.0;
+    for (int i = 0; i < n_qubits; i++){
+        Eigen::Matrix2cd op0 = I;
+        Eigen::Matrix2cd op1 = I;
+
+        if (i == control) {
+            op0 = P0;
+            op1 = P1;
+        } else if (i == target){
+            op1 = X;
         }
+
+        term0 = Eigen::kroneckerProduct(term0, op0).eval();
+        term1 = Eigen::kroneckerProduct(term1, op1).eval();
     }
 
-    return m;
-}
-
-static std::complex<double> gphase(double theta) {
-    return std::exp(std::complex<double>(0.0, theta));
+    return term0 + term1;
 }
 
 Eigen::Matrix2cd one_qubit_qasm_to_matrix(const std::string& qasm_code) {
+    OneQubit gate = OneQubit();
     Eigen::Matrix2cd U = Eigen::Matrix2cd::Identity();
 
     std::istringstream iss(qasm_code);
@@ -77,9 +69,9 @@ Eigen::Matrix2cd one_qubit_qasm_to_matrix(const std::string& qasm_code) {
 
     while (std::getline(iss, line)) {
         if (line.find("rz") != std::string::npos) {
-            U = rz_mat(parse_angle(line)) * U;
+            U = gate.rz_matrix(parse_angle(line)) * U;
         } else if (line.find("ry") != std::string::npos) {
-            U = ry_mat(parse_angle(line)) * U;
+            U = gate.ry_matrix(parse_angle(line)) * U;
         }
         if (line.find("gphase") != std::string::npos) {
             U *= std::exp(std::complex<double>(0.0, parse_angle(line)));
@@ -89,7 +81,8 @@ Eigen::Matrix2cd one_qubit_qasm_to_matrix(const std::string& qasm_code) {
     return U;
 }
 
-static Eigen::MatrixXcd simulate_qasm(const std::string& qasm_code, int n_qubits){
+static Eigen::MatrixXcd qasm_to_matrix(const std::string& qasm_code, int n_qubits){
+    OneQubit gate = OneQubit();
     int dim = 1 << n_qubits;
     Eigen::MatrixXcd U = Eigen::MatrixXcd::Identity(dim, dim);
 
@@ -113,18 +106,18 @@ static Eigen::MatrixXcd simulate_qasm(const std::string& qasm_code, int n_qubits
         if (line.find("rz") != std::string::npos){
             double angle = parse_angle(line);
             int qubit = parse_qubit(line, 0);
-            U = expand_single(rz_mat(angle), qubit, n_qubits) * U;
+            U = expand_single(gate.rz_matrix(angle), qubit, n_qubits) * U;
         } else if (line.find("ry") != std::string::npos) {
             double angle = parse_angle(line);
             int qubit    = parse_qubit(line, 0);
-            U = expand_single(ry_mat(angle), qubit, n_qubits) * U;
+            U = expand_single(gate.ry_matrix(angle), qubit, n_qubits) * U;
         } else if (line.find("cx") != std::string::npos) {
             int ctrl = parse_qubit(line, 0);
             size_t comma = line.find(',');
             int tgt = parse_qubit(line, comma);
             U = cx_mat(ctrl, tgt, n_qubits) * U;
         } else if (line.find("gphase") != std::string::npos){
-            U *= gphase(parse_angle(line));
+            U *= gate.gphase(parse_angle(line));
         }
 
     }
@@ -168,7 +161,7 @@ TEST(UnitaryGateNodeTests, IdentityGate) {
     unitaryNode.accept(visitor);
 
     std::cout << visitor.qasm_code << std::endl;
-    Eigen::MatrixXcd reconstructed = simulate_qasm(visitor.qasm_code, 2);
+    Eigen::MatrixXcd reconstructed = qasm_to_matrix(visitor.qasm_code, 2);
     
     EXPECT_FALSE(visitor.qasm_code.empty());
     EXPECT_NE(visitor.qasm_code.find("OPENQASM"), std::string::npos);
@@ -189,7 +182,7 @@ TEST(UnitaryGateNodeTests, CNOTGate) {
     unitaryNode.accept(visitor);
 
     std::cout << visitor.qasm_code << std::endl;
-    Eigen::MatrixXcd reconstructed = simulate_qasm(visitor.qasm_code, 2);
+    Eigen::MatrixXcd reconstructed = qasm_to_matrix(visitor.qasm_code, 2);
     
     EXPECT_FALSE(visitor.qasm_code.empty());
     EXPECT_NE(visitor.qasm_code.find("OPENQASM"), std::string::npos);
