@@ -14,7 +14,7 @@ static Eigen::MatrixXcd expand_single(const Eigen::Matrix2cd& gate, int target, 
     Eigen::MatrixXcd result(1, 1);
     result(0, 0) = 1.0;
 
-    for (int q = 0; q < n_qubits; q++){
+    for (int q = n_qubits-1; q >= 0; q--){
         const Eigen::Matrix2cd& factor = (q == target) ? gate : I2;
         Eigen::MatrixXcd next = Eigen::kroneckerProduct(result, factor).eval();
 
@@ -35,7 +35,7 @@ static Eigen::MatrixXcd cx_mat(int control, int target, int n_qubits){
     Eigen::MatrixXcd term0 = Eigen::MatrixXcd::Identity(1, 1);
     Eigen::MatrixXcd term1 = Eigen::MatrixXcd::Identity(1, 1);
 
-    for (int i = 0; i < n_qubits; i++){
+    for (int i = n_qubits-1; i >= 0; i--){
         Eigen::Matrix2cd op0 = I;
         Eigen::Matrix2cd op1 = I;
 
@@ -74,7 +74,7 @@ Eigen::Matrix2cd one_qubit_qasm_to_matrix(const std::string& qasm_code) {
             U = gate.ry_matrix(parse_angle(line)) * U;
         }
         if (line.find("gphase") != std::string::npos) {
-            U *= std::exp(std::complex<double>(0.0, parse_angle(line)));
+            U *= gate.gphase(parse_angle(line));
         }
     }
 
@@ -200,8 +200,11 @@ TEST(UnitaryGateNodeTests, Random4x4Unitary) {
     std::cout << visitor.qasm_code << std::endl;
     std::cout << "Expected Unitary: \n" << std::endl;
     std::cout << T << std::endl;
+
+    Eigen::MatrixXcd reconstructed = qasm_to_matrix(visitor.qasm_code, 2);
     
     EXPECT_FALSE(visitor.qasm_code.empty());
+    EXPECT_TRUE(T.isApprox(reconstructed, 1e-6));
     EXPECT_NE(visitor.qasm_code.find("OPENQASM"), std::string::npos);
 }
 
@@ -216,8 +219,11 @@ TEST(UnitaryGateNodeTests, Random8x8Unitary) {
     std::cout << visitor.qasm_code << std::endl;
     std::cout << "Expected Unitary: \n" << std::endl;
     std::cout << T << std::endl;
+
+    Eigen::MatrixXcd reconstructed = qasm_to_matrix(visitor.qasm_code, 3);
     
     EXPECT_FALSE(visitor.qasm_code.empty());
+    EXPECT_TRUE(T.isApprox(reconstructed, 1e-6));
     EXPECT_NE(visitor.qasm_code.find("OPENQASM"), std::string::npos);
 }
 
