@@ -71,6 +71,8 @@ add_library(synq
         include/twoQubitsUnitary.h
         src/diagonalGateNode.cpp
         include/diagonalGateNode.h
+        include/twoCtrlOperator.h
+        src/twoCtrlOperator.cpp
 )
 
 add_executable(Test
@@ -81,7 +83,8 @@ add_executable(Test
         test/test_rnd_unitary.cpp
         test/test_qsd.cpp
         test/test_unitary.cpp
-        test/test_diagonal.cpp)
+        test/test_diagonal.cpp
+        test/test_twoCtrlOperator.cpp)
 
 if(WIN32)
     target_link_libraries(synq 
