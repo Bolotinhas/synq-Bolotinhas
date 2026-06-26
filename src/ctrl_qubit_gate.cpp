@@ -3,48 +3,40 @@
 //
 
 #include "../include/ctrl_qubit_gate.h"
-#include <algorithm>
+#include "../include/nodeVisitor.h"
 
 ctrl_qubit_gate::ctrl_qubit_gate(int control_qubit, int target_qubit, Eigen::Matrix2cd uMatrix) {
     control = control_qubit;
     target = target_qubit;
     data = uMatrix;
+    num_qubits = 2; 
     
     decompose();
 }
 
 void ctrl_qubit_gate::decompose() {
+   
     angles = OneQubit::zyz_decomposition(data);
-}
-
-std::string ctrl_qubit_gate::to_qasm() {
-    std::string qasm;
-    
-    qasm += "OPENQASM 3.0;\n";
-    qasm += "include \"stdgates.inc\";\n";
-
-    int num_qubits = std::max(control, target) + 1;
-    qasm += "qreg q[" + std::to_string(num_qubits) + "];\n\n";
-
-    // Porta de fase com ângulo alfa aplicada no controle
-    qasm += "p(" + std::to_string(angles.alpha) + ") q[" + std::to_string(control) + "];\n";
+    phase_alpha = angles.alpha;
 
     // Matriz C
-    qasm += "rz(" + std::to_string((angles.delta - angles.beta) / 2.0) + ") q[" + std::to_string(target) + "];\n";
+    matrix_C = OneQubit::rz_matrix((angles.delta - angles.beta) / 2.0);
 
-    // CNOT 1
-    qasm += "cx q[" + std::to_string(control) + "], q[" + std::to_string(target) + "];\n";
+    // Matriz B 
+    Eigen::Matrix2cd ry_B = OneQubit::ry_matrix(-angles.gamma / 2.0);
+    Eigen::Matrix2cd rz_B = OneQubit::rz_matrix(-(angles.delta + angles.beta) / 2.0);
+    matrix_B = ry_B * rz_B;
 
-    // Matriz B
-    qasm += "rz(" + std::to_string(-(angles.delta + angles.beta) / 2.0) + ") q[" + std::to_string(target) + "];\n";
-    qasm += "ry(" + std::to_string(-angles.gamma / 2.0) + ") q[" + std::to_string(target) + "];\n";
+    // Matriz A     
+    Eigen::Matrix2cd rz_A = OneQubit::rz_matrix(angles.beta);
+    Eigen::Matrix2cd ry_A = OneQubit::ry_matrix(angles.gamma / 2.0);
+    matrix_A = rz_A * ry_A;
+}
 
-    // CNOT 2
-    qasm += "cx q[" + std::to_string(control) + "], q[" + std::to_string(target) + "];\n";
+void ctrl_qubit_gate::accept(nodeVisitor &visitor) {
+    visitor.visit(*this);
+}
 
-    // Matriz A
-    qasm += "ry(" + std::to_string(angles.gamma / 2.0) + ") q[" + std::to_string(target) + "];\n";
-    qasm += "rz(" + std::to_string(angles.beta) + ") q[" + std::to_string(target) + "];\n";
-
-    return qasm;
+return_type ctrl_qubit_gate::get_data() {
+    return data;
 }
