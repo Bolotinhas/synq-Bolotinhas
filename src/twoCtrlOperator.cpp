@@ -2,8 +2,10 @@
 #include "../include/one_qubit_gate.h"
 #include <cmath>
 #include <unsupported/Eigen/MatrixFunctions>
+#include "../include/nodeVisitor.h"
 using namespace std;
 
+// Faz a decomposição de um operador unitário nas matrizes ABC
 abc_result abc_decomposition(const Eigen::Matrix2cd& V){
     // Faz a decomposição zyz
     zyz_result zyz = OneQubit::zyz_decomposition(V);
@@ -27,9 +29,27 @@ abc_result abc_decomposition(const Eigen::Matrix2cd& V){
     return result;
 }
 
+// Inicializa a variável privada 'num_qubits' com o valor recebido por parâmetro
+CtrlOperatorNode::CtrlOperatorNode(int n_qubits) : num_qubits(n_qubits) {}
+
+// Faz o visitor marcar esse node como visitado
+void CtrlOperatorNode::accept(nodeVisitor &visitor) {
+    visitor.visit(*this);
+}
+
+// Retorna o número de qubits de um CtrlOperatorNode
+return_type CtrlOperatorNode::get_data() {
+    return static_cast<double>(num_qubits);
+}
+
+// Cria um ponteiro único para esse node
+std::unique_ptr<IASTnode> CtrlOperatorNode::createCtrlOperatorNode(int num_qubits) {
+    return std::make_unique<CtrlOperatorNode>(num_qubits);
+}
+
 // Aplica uma porta U de 1 qubit no target, controlada por um qubit ctrl
-Eigen::MatrixXcd oneCtrlOperator(const Eigen::Matrix2cd& U, int ctrl, int target, int n_qubits) {
-    int dim = pow(2, n_qubits); // 2^n_qubits
+Eigen::MatrixXcd CtrlOperatorNode::oneCtrlOperator(const Eigen::Matrix2cd& U, int ctrl, int target) {
+    int dim = pow(2, num_qubits); // 2^num_qubits
     Eigen::MatrixXcd result = Eigen::MatrixXcd::Identity(dim, dim); //retorna identidade para caso o controle nao for setado
 
     // Varre todas as colunas 
@@ -74,7 +94,8 @@ Operador controlado por 2 bits de controle onde V² = U:
   q3 (target)   ──[U]──       ──[V]─────────[V†]────────[V]──
 */
 
-Eigen::MatrixXcd twoCtrlOperator(const Eigen::Matrix2cd& U, int ctrl1, int ctrl2, int target, int n_qubits) {
+// Aplica uma porta U de 1 qubit no target, controlada por dois qubit ctrl1 e ctrl2
+Eigen::MatrixXcd CtrlOperatorNode::twoCtrlOperator(const Eigen::Matrix2cd& U, int ctrl1, int ctrl2, int target) {
     // V é a raiz quadrada de U (V * V = U)
     Eigen::Matrix2cd V = U.sqrt();
     // V† é a conjugada transposta de V
@@ -83,19 +104,19 @@ Eigen::MatrixXcd twoCtrlOperator(const Eigen::Matrix2cd& U, int ctrl1, int ctrl2
     Eigen::Matrix2cd X = OneQubit::x_matrix();
 
     // V controlada por ctrl2 no target
-    Eigen::MatrixXcd op1 = oneCtrlOperator(V, ctrl2, target, n_qubits);
+    Eigen::MatrixXcd op1 = oneCtrlOperator(V, ctrl2, target);
     
     // CNOT controlada por ctrl1 no ctrl2
-    Eigen::MatrixXcd op2 = oneCtrlOperator(X, ctrl1, ctrl2, n_qubits);
+    Eigen::MatrixXcd op2 = oneCtrlOperator(X, ctrl1, ctrl2);
     
     // V† controlada por ctrl2 no target
-    Eigen::MatrixXcd op3 = oneCtrlOperator(V_dagger, ctrl2, target, n_qubits);
+    Eigen::MatrixXcd op3 = oneCtrlOperator(V_dagger, ctrl2, target);
     
     // CNOT controlada por ctrl1 no ctrl2
-    Eigen::MatrixXcd op4 = oneCtrlOperator(X, ctrl1, ctrl2, n_qubits);
+    Eigen::MatrixXcd op4 = oneCtrlOperator(X, ctrl1, ctrl2);
     
     // V controlada por ctrl1 no target
-    Eigen::MatrixXcd op5 = oneCtrlOperator(V, ctrl1, target, n_qubits);
+    Eigen::MatrixXcd op5 = oneCtrlOperator(V, ctrl1, target);
 
     return op5 * op4 * op3 * op2 * op1;
 }
