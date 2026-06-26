@@ -270,7 +270,6 @@ void qasmVisitor::visit(twoQubitGateNode &node) {
 
 }
 
-
 void qasmVisitor::visit(ctrl_qubit_gate &node) {
    
     qasm_code += "p(" + std::to_string(node.phase_alpha) + ") q[" + std::to_string(node.control) + "];\n";
@@ -283,3 +282,5 @@ void qasmVisitor::visit(ctrl_qubit_gate &node) {
     qasm_code += "rz(" + std::to_string(node.angles.beta) + ") q[" + std::to_string(node.target) + "];\n";
 
 }
+
+void qasmVisitor::visit(CtrlOperatorNode &node){}
