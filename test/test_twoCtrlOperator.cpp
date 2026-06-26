@@ -31,8 +31,11 @@ TEST(CtrlOperators, oneCtrlOperator){
     int target = 0;
     int n_qubits = 2; // Sistema de 2 qubits (dimensão 4x4)
     
+    // Instanciando a classe CtrlOperatorNode passando o número de qubits
+    CtrlOperatorNode operation(n_qubits);
+
     // Aplica CNOT 
-    Eigen::MatrixXcd result = oneCtrlOperator(X, ctrl, target, n_qubits);
+    Eigen::MatrixXcd result = operation.oneCtrlOperator(X, ctrl, target);
     
     // A matriz esperada começa como identidade e inverte os dois últimos estados (|10> e |11>)
     Eigen::MatrixXcd expected = Eigen::MatrixXcd::Identity(4, 4);
@@ -55,8 +58,11 @@ TEST(CtrlOperators, twoCtrlOperator){
     int target = 0;
     int n_qubits = 3; // Sistema de 3 qubits (dimensão 8x8)
     
+    // Instanciando a classe CtrlOperatorNode passando o número de qubits
+    CtrlOperatorNode operation(n_qubits);
+
     // Executa a função de operador controlado com dois controles
-    Eigen::MatrixXcd result = twoCtrlOperator(X, ctrl1, ctrl2, target, n_qubits);
+    Eigen::MatrixXcd result = operation.twoCtrlOperator(X, ctrl1, ctrl2, target);
     
     // A matriz esperada começa como identidade e inverte os dois últimos estados (|110> e |111>)
     Eigen::MatrixXcd expected = Eigen::MatrixXcd::Identity(8, 8);
