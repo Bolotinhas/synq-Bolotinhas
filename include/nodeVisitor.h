@@ -9,6 +9,8 @@
 #include <vector>
 #include <complex>
 #include <string>
+#include <iomanip>
+#include <sstream>
 
 #include "ucrzNode.h"
 #include "ucryNode.h"
@@ -50,7 +52,9 @@ struct return_type_visitor {
     }
 
     std::string operator()(const double a) {
-        return std::to_string(a);
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(15) << a;
+        return oss.str();
     }
     
     std::string operator()(const std::vector<double> a) { 
