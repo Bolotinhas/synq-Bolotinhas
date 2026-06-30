@@ -66,4 +66,12 @@ Eigen::Matrix2cd one_qubit_qasm_to_matrix(const std::string& qasm_code);
  */
 Eigen::MatrixXcd qasm_to_matrix(const std::string& qasm_code, int n_qubits);
 
+/**
+ * @brief Prints a quantum matrix in a readable format
+ * 
+ * @param matrix Eigen::MatrixXcd matrix to be printed
+ * @param name Name of the matrix to be printed
+ */
+void printQuantumMatrix(const Eigen::MatrixXcd& matrix, const std::string& name);
+
 #endif 
