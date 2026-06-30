@@ -2,6 +2,8 @@
 #include "../include/one_qubit_gate.h"
 #include <sstream>
 #include <unsupported/Eigen/KroneckerProduct>
+#include <iostream>
+#include <iomanip>
 
 Eigen::MatrixXcd expand_single(const Eigen::Matrix2cd& gate, int target, int n_qubits){
     Eigen::Matrix2cd I2 = Eigen::Matrix2cd::Identity();
@@ -106,7 +108,27 @@ Eigen::MatrixXcd qasm_to_matrix(const std::string& qasm_code, int n_qubits){
             U = cx_mat(ctrl, tgt, n_qubits) * U;
         } else if (line.find("gphase") != std::string::npos){
             U *= gate.gphase(parse_angle(line));
+        } else if (line.find("p") != std::string::npos){
+            double angle = parse_angle(line);
+            int qubit    = parse_qubit(line, 0);
+            U = expand_single(gate.p_matrix(angle), qubit, n_qubits) * U;
         }
     }
     return U;
+}
+
+void printQuantumMatrix(const Eigen::MatrixXcd& matrix, const std::string& name) {
+    std::cout << std::fixed << std::setprecision(2); 
+    std::cout << name << " matrix:\n";
+    for (int i = 0; i < matrix.rows(); ++i) {
+        for (int j = 0; j < matrix.cols(); ++j) {
+            std::complex<double> val = matrix(i, j);
+            
+            double real_part = (std::abs(val.real()) < 1e-6) ? 0.0 : val.real();
+            double imag_part = (std::abs(val.imag()) < 1e-6) ? 0.0 : val.imag();
+
+            std::cout << "(" << real_part << "," << imag_part << ")\t";
+        }
+        std::cout << "\n";
+    }
 }
