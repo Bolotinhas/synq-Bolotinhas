@@ -10,41 +10,34 @@
 
 #pragma once
 #include <Eigen/Dense>
+#include <vector>
 #include "iast.h"
 
 /**
- * @struct abc_result
- * @brief Struct used to store ABC matrix decomposition and delta angle 
- */
-struct abc_result {
-    Eigen::Matrix2cd A;
-    Eigen::Matrix2cd B;
-    Eigen::Matrix2cd C;
-    double delta;
-};
-
-/**
-* @brief Construct an ABC matrix decomposition on a unitary matrix V based on Barenco Theorem
-*
-* @param V Unitary matrix that is decomposed 
-*/
-abc_result abc_decomposition(const Eigen::Matrix2cd& V);
-
-/**
- * @class rzNode
- * @brief AST node representing a quantum RZ rotation gate.
+ * @class CtrlOperatorNode
+ * @brief AST node representing a controlled operator with one or two control qubits
  *
- * This node stores a rotation angle (in radians) and an optional qubit position.
- * It is used in the AST to represent the application of an RZ gate in a quantum circuit.
+ * This node provides methods to apply a unitary operation controlled by one or two control qubits on a target qubit
  */
-class CtrlOperatorNode final :public IASTnode{
+class CtrlOperatorNode :public IASTnode{
 public:
 /**
 * @brief Construct an CtrlOperator node with a given number of qubits
 *
-* @param n_qubits number of qubits involved in the operator
+* @param ctrl_bits Vector of integers representing the positions of the control bits
+* @param target_bit Integer representing the position of the target bit
+* @param matrix Eigen::MatrixXcd representing the unitary operation to be applied
 */
-explicit CtrlOperatorNode(int n_qubits);
+explicit CtrlOperatorNode(std::vector<int>& ctrl_bits, int target_bit, Eigen::MatrixXcd& matrix, Eigen::Matrix2cd& Op);
+
+/** @brief Return the number of control bits */
+int get_num_ctrl();
+
+/** @brief Return the position of a control bit at a given index */
+int get_ctrl(int index);
+
+/** @brief Return the position of the target bit */
+int get_target();
 
 /**
 * @brief Accept a visitor according to the Visitor pattern.
@@ -66,7 +59,7 @@ return_type get_data() override;
 * @param num_qubits description
 * @return std::unique_ptr<IASTnode> Newly created CtrlOperator node.
 */
-static std::unique_ptr<IASTnode> createCtrlOperatorNode(int num_qubits);
+static std::unique_ptr<IASTnode> createCtrlOperatorNode(std::vector<int>& controls, int target, Eigen::MatrixXcd& CtrlMatrix, Eigen::Matrix2cd& OperatorMatrix);
 
 /**
 * @brief Apply a operator controlled by one control bit on a target bit
@@ -83,12 +76,20 @@ Eigen::MatrixXcd oneCtrlOperator(const Eigen::Matrix2cd& U, int ctrl, int target
 * @param U Unitary matrix representing the applied operation
 * @param ctrl1 Integer representing the position of the first control bit
 * @param ctrl2 Integer representing the position of the second control bit
-* @param target Integer representing the position of the target bit
 */
-Eigen::MatrixXcd twoCtrlOperator(const Eigen::Matrix2cd& U, int ctrl1, int ctrl2, int target);
+Eigen::MatrixXcd twoCtrlOperator(const Eigen::Matrix2cd& U, int ctrl1, int ctrl2);
+
+/** @brief Unitary matrix representing the operation to be applied */
+Eigen::Matrix2cd OperatorMatrix;
 
 private:
-/** @brief Number of qubits involved in the operation. */
-int num_qubits;
+/** @brief Vector of integers representing the positions of the control bits. */
+std::vector<int> controls;
+
+/** @brief Position of the target bit. */
+int target;
+
+/** @brief Matrix representing the current state of the control matrix. */
+Eigen::MatrixXcd CtrlMatrix;
 
 };
