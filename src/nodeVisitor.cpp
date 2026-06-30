@@ -9,6 +9,8 @@
 #include <numbers>
 #include <iomanip>
 #include <sstream>
+#include <Eigen/Dense>
+#include <unsupported/Eigen/MatrixFunctions>
 
 static std::string format_double(double val){
     std::ostringstream oss;
@@ -292,4 +294,22 @@ void qasmVisitor::visit(ctrl_qubit_gate &node) {
 
 }
 
-void qasmVisitor::visit(CtrlOperatorNode &node){}
+void qasmVisitor::visit(CtrlOperatorNode &node){
+    if(node.get_num_ctrl() == 1){
+        ctrl_qubit_gate ctrl_gate = ctrl_qubit_gate(node.get_ctrl(0), node.get_target(), node.OperatorMatrix);
+        visit(ctrl_gate);
+    }
+    if(node.get_num_ctrl() == 2){
+        Eigen::Matrix2cd V = node.OperatorMatrix.sqrt();
+        Eigen::Matrix2cd V_dagger = V.adjoint();
+        Eigen::Matrix2cd X = OneQubit::x_matrix();
+        ctrl_qubit_gate ctrl_gate = ctrl_qubit_gate(node.get_ctrl(1), node.get_target(), V);
+        visit(ctrl_gate);
+        qasm_code += "cx q[" + std::to_string(node.get_ctrl(0)) + "], q[" + std::to_string(node.get_ctrl(1)) + "];\n";
+        ctrl_gate = ctrl_qubit_gate(node.get_ctrl(1), node.get_target(), V_dagger);
+        visit(ctrl_gate);
+        qasm_code += "cx q[" + std::to_string(node.get_ctrl(0)) + "], q[" + std::to_string(node.get_ctrl(1)) + "];\n";
+        ctrl_gate = ctrl_qubit_gate(node.get_ctrl(0), node.get_target(), V);
+        visit(ctrl_gate);
+    }
+}
