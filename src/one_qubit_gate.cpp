@@ -63,3 +63,10 @@ Eigen::Matrix2cd OneQubit::rz_matrix(double theta) {
 std::complex<double> OneQubit::gphase(double theta) {
     return std::exp(std::complex<double>(0.0, theta));
 }
+
+Eigen::Matrix2cd OneQubit::p_matrix(double theta) {
+    Eigen::Matrix2cd const p =
+        (Eigen::Matrix2cd() << 1.0, 0.i,
+                               0.i, OneQubit::gphase(theta)).finished();
+    return p;
+}
